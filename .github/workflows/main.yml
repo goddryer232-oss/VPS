@@ -1,45 +1,44 @@
-name: CI
+name: Run Chat Server with ngrok
 
-
-on: [push, workflow_dispatch]
-
+on:
+  workflow_dispatch: # รันได้ด้วยตนเอง
 
 jobs:
-
-  build:
-
-
+  run-server:
     runs-on: windows-latest
 
-
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-name: Download
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '24'
 
-      run: Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok... -OutFile ngrok.zip
+    - name: Install dependencies
+      run: npm install
 
-name: Extract
+    - name: Download ngrok
+      run: |
+        Invoke-WebRequest https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-windows-amd64.zip -OutFile ngrok.zip
+        Expand-Archive ngrok.zip -DestinationPath ngrok
 
-      run: Expand-Archive ngrok.zip
-
-name: Auth
-
+    - name: Authenticate ngrok
       run: .\ngrok\ngrok.exe authtoken $Env:NGROK_AUTH_TOKEN
-
       env:
-
         NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
 
-name: Enable TS
+    - name: Run Node.js server
+      run: |
+        start /B cmd /c "node server.js"
 
-      run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server'-name "fDenyTSConnections" -Value 0
+    - name: Start ngrok HTTP tunnel
+      run: |
+        start /B cmd /c ".\ngrok\ngrok.exe http 3000 --log=stdout > ngrok.log"
 
-run: Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-
-run: Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
-
-run: Set-LocalUser -Name "runneradmin" -Password (ConvertTo-SecureString -AsPlainText "P@ssw0rd!" -Force)
-
-name: Create Tunnel
-
-      run: .\ngrok\ngrok.exe tcp 3389
+    - name: Show ngrok URL
+      run: |
+        timeout /t 5
+        $url = Select-String -Path ngrok.log -Pattern "url=https://.*\.ngrok.io" | ForEach-Object { $_.Matches[0].Value.Split('=')[1] }
+        Write-Host "Ngrok URL: $url"
